@@ -82,6 +82,7 @@ export async function freeSearch(query: string, maxResults?: number, f: typeof f
   });
   const text = await res.text();
   if (res.status === 429) throw new AgentSearchError(FREE_LIMIT_MESSAGE, 429);
+  if (res.status >= 400 && res.status < 500) throw new AgentSearchError(`AgentSearch relay rejected the request (HTTP ${res.status}, not counted, nothing charged). Fix the input instead of retrying it unchanged: ${text.slice(0, 500)}`, res.status);
   if (!res.ok) throw new AgentSearchError(`AgentSearch relay HTTP ${res.status}: ${text.slice(0, 500)}`, res.status);
   try { return stripProvider(JSON.parse(text)); } catch { return { raw: text }; }
 }

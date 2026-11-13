@@ -23,9 +23,9 @@ test("query trimmed, null max_results = default, clamping", async () => {
   const { f, calls } = counter();
   const t = AgentSearchTool({ fetch: f });
   await t.invoke({ query: "  lc  ", max_results: null });
-  await t.invoke({ query: "x", max_results: 50 });
-  await t.invoke({ query: "x", max_results: 0 });
-  assert.deepEqual(calls.map((c) => c.body), [{ query: "lc" }, { query: "x", max_results: 5 }, { query: "x", max_results: 1 }]);
+  await t.invoke({ query: "xy", max_results: 50 });
+  await t.invoke({ query: "xy", max_results: 0 });
+  assert.deepEqual(calls.map((c) => c.body), [{ query: "lc" }, { query: "xy", max_results: 5 }, { query: "xy", max_results: 1 }]);
 });
 
 const BAD = ["", "example.com/page", "ftp://example.com/x", "javascript:alert(1)", "file:///etc/passwd", "https://user:pw@example.com/",
@@ -62,4 +62,19 @@ test("descriptions show direct prices", () => {
   assert.match(AgentSearchTool().description, /\$0\.008/);
   assert.match(AgentSearchExtractTool().description, /\$0\.004/);
   assert.doesNotMatch(AgentSearchExtractTool().description, /\$0\.007/);
+});
+
+for (const q of ["x", " 7 "]) {
+  test(`1-char query ${JSON.stringify(q)} -> Error, no fetch (relay 400s these as QUERY_TOO_SHORT)`, async () => {
+    const { f, calls } = counter();
+    const out = await AgentSearchTool({ fetch: f }).invoke({ query: q });
+    assert.match(out, /^Error: .*at least 2 characters/);
+    assert.equal(calls.length, 0);
+  });
+}
+
+test("relay 4xx -> Error telling the model not to retry unchanged", async () => {
+  const f = async () => new Response(JSON.stringify({ error: { code: "QUERY_TOO_SHORT", retryable: true } }), { status: 400 });
+  const out = await AgentSearchTool({ fetch: f }).invoke({ query: "ok query" });
+  assert.match(out, /^Error: .*rejected the request \(HTTP 400.*instead of retrying/);
 });

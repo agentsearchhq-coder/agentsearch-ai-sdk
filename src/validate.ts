@@ -3,6 +3,7 @@
 import { isIP } from "node:net";
 
 export const MAX_QUERY_CHARS = 400;
+export const MIN_QUERY_CHARS = 2;
 const NOTHING = " Nothing was sent or charged.";
 const BLOCKED_SUFFIXES = [".localhost", ".local", ".internal", ".lan", ".home", ".corp", ".intranet", ".localdomain", ".home.arpa"];
 
@@ -14,6 +15,7 @@ export function checkQuery(q: unknown): string {
   if (typeof q !== "string") throw new InvalidInputError('query is required: pass a non-empty search string, e.g. {"query": "latest AI SDK release"}.');
   const s = q.trim();
   if (!s) throw new InvalidInputError("query is empty or whitespace-only: pass a non-empty search string.");
+  if (s.length < MIN_QUERY_CHARS) throw new InvalidInputError(`query must be at least ${MIN_QUERY_CHARS} characters (got "${s}"); use a fuller search phrase. Do not retry the same query.`);
   if (s.length > MAX_QUERY_CHARS) throw new InvalidInputError(`query is ${s.length} characters; keep it under ${MAX_QUERY_CHARS}.`);
   return s;
 }

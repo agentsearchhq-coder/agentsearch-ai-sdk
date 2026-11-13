@@ -20,16 +20,16 @@ test("tool metadata and schemas", () => {
 
 test("free search via relay (mocked) and provider stripped", async () => {
   const t = AgentSearchTool({ fetch: fakeFetch(200, { query: "x", provider: "p", results: [{ title: "T", url: "https://a" }] }) });
-  const r = JSON.parse(await t.invoke({ query: "x", max_results: 1 }));
+  const r = JSON.parse(await t.invoke({ query: "xy", max_results: 1 }));
   assert.equal(fakeFetch.last.url, "https://relay.agentsearchhq.com/v1/search");
-  assert.deepEqual(fakeFetch.last.body, { query: "x", max_results: 1 });
+  assert.deepEqual(fakeFetch.last.body, { query: "xy", max_results: 1 });
   assert.equal(r.provider, undefined);
   assert.equal(r.results[0].title, "T");
 });
 
 test("429 -> friendly limit message", async () => {
   const t = AgentSearchTool({ fetch: fakeFetch(429, {}) });
-  assert.equal(await t.invoke({ query: "x" }), `Error: ${FREE_LIMIT_MESSAGE}`);
+  assert.equal(await t.invoke({ query: "xy" }), `Error: ${FREE_LIMIT_MESSAGE}`);
 });
 
 test("paid tools refuse without a wallet when the free trial is off", async () => {
@@ -67,7 +67,7 @@ test("free trial 429 -> trial limit message with wallet upgrade; 404 -> paid-onl
 test("news and screenshot need a wallet (no network)", async () => {
   globalThis.fetch = async () => { throw new Error("no network expected"); };
   const n = agentSearchTools().find((t) => t.name === "agentsearch_news_search");
-  assert.match(await n.invoke({ query: "q" }), /No wallet/);
+  assert.match(await n.invoke({ query: "qq" }), /No wallet/);
   const sh = agentSearchTools().find((t) => t.name === "agentsearch_screenshot");
   const msg = await sh.invoke({ id: "c1", name: "agentsearch_screenshot", args: { url: "https://example.com" }, type: "tool_call" });
   assert.match(String(msg.content), /No wallet/);
@@ -104,7 +104,7 @@ test("generateText agent uses the tool (mocked fetch)", async () => {
 });
 
 test("agentSearchTools() is a ToolSet generateText accepts", async () => {
-  const r = await generateText({ model: mockModel("x"), tools: lib.agentSearchTools({ fetch: fakeFetch(200, { results: [{ title: "Set", url: "https://s" }] }) }), prompt: "x", stopWhen: isStepCount(3) });
+  const r = await generateText({ model: mockModel("xy"), tools: lib.agentSearchTools({ fetch: fakeFetch(200, { results: [{ title: "Set", url: "https://s" }] }) }), prompt: "x", stopWhen: isStepCount(3) });
   assert.match(r.text, /Set/);
   assert.deepEqual(Object.keys(lib.agentSearchFreeTools()), ["agentsearch_search", "agentsearch_extract", "agentsearch_render"]);
 });
@@ -122,7 +122,7 @@ test("wallet key alone never switches search to paid; schema hides mode", async 
     assert.equal(resolveSearchMode("auto"), "paid");
     assert.equal(resolveSearchMode("paid"), "paid");
     const t = AgentSearchTool({ fetch: fakeFetch(200, { results: [] }) });
-    await t.invoke({ query: "x" });
+    await t.invoke({ query: "xy" });
     assert.equal(fakeFetch.last.url, "https://relay.agentsearchhq.com/v1/search");
     process.env.AGENTSEARCH_MODE = "free";
     assert.equal(resolveSearchMode("paid"), "free");
