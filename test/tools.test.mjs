@@ -1,0 +1,153 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { generateText, isStepCount } from "ai";
+import { MockLanguageModelV4 } from "ai/test";
+import * as lib from "../dist/index.js";
+import { AgentSearchTool, AgentSearchExtractTool, AgentSearchRenderTool, agentSearchTools, FREE_LIMIT_MESSAGE } from "./_compat.mjs";
+
+const realFetch = globalThis.fetch;
+for (const k of ["AGENTSEARCH_WALLET_PRIVATE_KEY", "POCKET_PRIVATE_KEY"]) delete process.env[k];
+
+const fakeFetch = (status, body) => async (url, init) => {
+  fakeFetch.last = { url, body: JSON.parse(init.body) };
+  return new Response(JSON.stringify(body), { status });
+};
+
+test("tool metadata and schemas", () => {
+  const names = agentSearchTools().map((t) => t.name);
+  assert.deepEqual(names, ["agentsearch_search", "agentsearch_extract", "agentsearch_render", "agentsearch_search_and_read", "agentsearch_news_search", "agentsearch_screenshot"]);
+});
+
+test("free search via relay (mocked) and provider stripped", async () => {
+  const t = AgentSearchTool({ fetch: fakeFetch(200, { query: "x", provider: "p", results: [{ title: "T", url: "https://a" }] }) });
+  const r = JSON.parse(await t.invoke({ query: "x", max_results: 1 }));
+  assert.equal(fakeFetch.last.url, "https://relay.agentsearchhq.com/v1/search");
+  assert.deepEqual(fakeFetch.last.body, { query: "x", max_results: 1 });
+  assert.equal(r.provider, undefined);
+  assert.equal(r.results[0].title, "T");
+});
+
+test("429 -> friendly limit message", async () => {
+  const t = AgentSearchTool({ fetch: fakeFetch(429, {}) });
+  assert.equal(await t.invoke({ query: "x" }), `Error: ${FREE_LIMIT_MESSAGE}`);
+});
+
+test("paid tools refuse without a wallet when the free trial is off", async () => {
+  process.env.AGENTSEARCH_FREE_TRIAL = "0";
+  try {
+    const nofetch = async () => { throw new Error("no network expected"); };
+    assert.match(await AgentSearchExtractTool({ fetch: nofetch }).invoke({ url: "https://example.com" }), /paid.*No wallet/);
+    assert.match(await AgentSearchRenderTool({ fetch: nofetch }).invoke({ url: "https://example.com" }), /paid.*No wallet/);
+  } finally { delete process.env.AGENTSEARCH_FREE_TRIAL; }
+});
+
+test("no wallet: extract/render use the relay free trial (mocked), screenshot flags dropped", async () => {
+  const seen = [];
+  const f = async (u, init) => { seen.push({ url: String(u), body: JSON.parse(init.body) });
+    return new Response(JSON.stringify({ markdown: "y".repeat(300), provider: "x", free_trial: { remaining_today: 4 } }), { status: 200 }); };
+  const e = JSON.parse(await AgentSearchExtractTool({ fetch: f }).invoke({ url: "https://example.com", max_chars: 500 }));
+  assert.equal(seen[0].url, "https://relay.agentsearchhq.com/v1/extract");
+  assert.equal(seen[0].body.max_chars, 500);
+  assert.match(e.note, /Free trial/); assert.equal(e.provider, undefined); assert.equal(e.payment, undefined);
+  const r = JSON.parse(await AgentSearchRenderTool({ fetch: f }).invoke({ url: "https://example.com", screenshot: true }));
+  assert.equal(seen[1].url, "https://relay.agentsearchhq.com/v1/render");
+  assert.equal(seen[1].body.screenshot, undefined);
+  assert.match(r.note, /Screenshots are not part of the free trial/);
+});
+
+test("free trial 429 -> trial limit message with wallet upgrade; 404 -> paid-only message", async () => {
+  const f429 = async () => new Response(JSON.stringify({ error: { message: "daily trial used" } }), { status: 429 });
+  const m = await AgentSearchExtractTool({ fetch: f429 }).invoke({ url: "https://example.com" });
+  assert.match(m, /Free trial limit reached for agentsearch_extract: 5 extract calls\/day per IP/);
+  assert.match(m, /\$0\.004/); assert.match(m, /daily trial used/);
+  const f404 = async () => new Response("nope", { status: 404 });
+  assert.match(await AgentSearchRenderTool({ fetch: f404 }).invoke({ url: "https://example.com" }), /paid.*No wallet/);
+});
+
+test("news and screenshot need a wallet (no network)", async () => {
+  globalThis.fetch = async () => { throw new Error("no network expected"); };
+  const n = agentSearchTools().find((t) => t.name === "agentsearch_news_search");
+  assert.match(await n.invoke({ query: "q" }), /No wallet/);
+  const sh = agentSearchTools().find((t) => t.name === "agentsearch_screenshot");
+  const msg = await sh.invoke({ id: "c1", name: "agentsearch_screenshot", args: { url: "https://example.com" }, type: "tool_call" });
+  assert.match(String(msg.content), /No wallet/);
+});
+
+test("bad wallet key is rejected without leaking it", async () => {
+  process.env.AGENTSEARCH_WALLET_PRIVATE_KEY = "nothex-secret";
+  const r = await AgentSearchExtractTool().invoke({ url: "https://example.com" });
+  delete process.env.AGENTSEARCH_WALLET_PRIVATE_KEY;
+  assert.match(r, /not a private key/);
+  assert.doesNotMatch(r, /nothex-secret/);
+});
+
+const usage = { inputTokens: { total: 1, noCache: 1, cacheRead: undefined, cacheWrite: undefined }, outputTokens: { total: 1, text: 1, reasoning: undefined } };
+/** Mock model: first step calls agentsearch_search, second step answers with the tool result it was given. */
+function mockModel(query) {
+  return new MockLanguageModelV4({
+    doGenerate: async ({ prompt }) => {
+      const toolMsg = prompt.find((m) => m.role === "tool");
+      if (toolMsg) {
+        const part = toolMsg.content.find((p) => p.type === "tool-result");
+        return { content: [{ type: "text", text: `Answer based on: ${JSON.stringify(part.output.value)}` }], finishReason: { unified: "stop", raw: undefined }, usage, warnings: [] };
+      }
+      return { content: [{ type: "tool-call", toolCallId: "c1", toolName: "agentsearch_search", input: JSON.stringify({ query, max_results: 2 }) }], finishReason: { unified: "tool-calls", raw: undefined }, usage, warnings: [] };
+    },
+  });
+}
+
+test("generateText agent uses the tool (mocked fetch)", async () => {
+  const tools = { agentsearch_search: lib.AgentSearchTool({ fetch: fakeFetch(200, { results: [{ title: "Mocked", url: "https://m" }] }) }) };
+  const r = await generateText({ model: mockModel("hello"), tools, prompt: "hello", stopWhen: isStepCount(3) });
+  assert.match(r.text, /Mocked/);
+  assert.equal(fakeFetch.last.body.query, "hello");
+});
+
+test("agentSearchTools() is a ToolSet generateText accepts", async () => {
+  const r = await generateText({ model: mockModel("x"), tools: lib.agentSearchTools({ fetch: fakeFetch(200, { results: [{ title: "Set", url: "https://s" }] }) }), prompt: "x", stopWhen: isStepCount(3) });
+  assert.match(r.text, /Set/);
+  assert.deepEqual(Object.keys(lib.agentSearchFreeTools()), ["agentsearch_search", "agentsearch_extract", "agentsearch_render"]);
+});
+
+test("LIVE: generateText agent does one real free search", { skip: !process.env.AGENTSEARCH_LIVE }, async () => {
+  const r = await generateText({ model: mockModel("Vercel AI SDK tools"), tools: { agentsearch_search: lib.AgentSearchTool({ fetch: realFetch }) }, prompt: "q", stopWhen: isStepCount(3) });
+  assert.match(r.text, /"url":"https?:\/\//);
+});
+
+test("wallet key alone never switches search to paid; schema hides mode", async () => {
+  process.env.AGENTSEARCH_WALLET_PRIVATE_KEY = "0x" + "11".repeat(32);
+  try {
+    const { resolveSearchMode } = await import("../dist/index.js");
+    assert.equal(resolveSearchMode(), "free");
+    assert.equal(resolveSearchMode("auto"), "paid");
+    assert.equal(resolveSearchMode("paid"), "paid");
+    const t = AgentSearchTool({ fetch: fakeFetch(200, { results: [] }) });
+    await t.invoke({ query: "x" });
+    assert.equal(fakeFetch.last.url, "https://relay.agentsearchhq.com/v1/search");
+    process.env.AGENTSEARCH_MODE = "free";
+    assert.equal(resolveSearchMode("paid"), "free");
+  } finally {
+    delete process.env.AGENTSEARCH_WALLET_PRIVATE_KEY; delete process.env.AGENTSEARCH_MODE;
+  }
+  const { resolveSearchMode } = await import("../dist/index.js");
+  assert.equal(resolveSearchMode("paid"), "free"); // no key -> free fallback
+  for (const t of agentSearchTools()) {
+    const keys = Object.keys(t.inputSchema.shape);
+    assert.ok(!keys.includes("mode"), t.name);
+  }
+  assert.throws(() => AgentSearchTool({ mode: "bogus" }));
+});
+
+test("wording: per IP, no unlimited, no render price; extract formats enum", async () => {
+  const fs = await import("node:fs");
+  const readme = fs.readFileSync(new URL("../README.md", import.meta.url), "utf8");
+  const { PAID_ONLY_MESSAGE } = await import("../dist/index.js");
+  assert.match(FREE_LIMIT_MESSAGE, /per IP.*shared daily capacity/);
+  for (const s of [FREE_LIMIT_MESSAGE, readme]) assert.doesNotMatch(s, /unlimited|per user/i);
+  assert.doesNotMatch(PAID_ONLY_MESSAGE("agentsearch_render"), /\$/);
+  const [, ex, rd] = agentSearchTools();
+  assert.match(rd.description, /\$0\.010/);
+  assert.doesNotMatch(ex.inputSchema.shape.render_fallback.description, /\$/);
+  assert.ok(ex.inputSchema.safeParse({ url: "https://a.b", formats: ["markdown"] }).success);
+  assert.ok(!ex.inputSchema.safeParse({ url: "https://a.b", formats: ["pdf"] }).success);
+});
