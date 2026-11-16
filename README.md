@@ -7,9 +7,9 @@ Works with `generateText`, `streamText` and agents in AI SDK 5, 6 and 7.
 | Tool name | Cost |
 |---|---|
 | `agentsearch_search` | **Free** by default (up to 25 searches/day per IP, subject to shared daily capacity; up to 5 results; no key). Paid search only when you opt in (`mode: "paid"` or `AGENTSEARCH_MODE=paid`), $0.005/call |
-| `agentsearch_extract` | URL to clean markdown/text. **Free trial** with no wallet (5 calls/day per IP), then $0.004/call |
+| `agentsearch_extract` | URL to clean markdown/text. **Free trial** with no wallet (5 calls/day per IP), then $0.002/call |
 | `agentsearch_render` | Headless browser for JavaScript pages. **Free trial** with no wallet (3 calls/day per IP, no screenshots), then $0.005/call |
-| `agentsearch_search_and_read` | Search plus the top pages' text in one call, $0.006 (charged only when at least one page returns text) |
+| `agentsearch_search_and_read` | Search plus the top pages' text in one call, $0.005 (charged only when at least one page returns text) |
 | `agentsearch_news_search` | Recent news with publish dates, $0.005 (not charged when there are no results) |
 | `agentsearch_screenshot` | PNG/JPEG page screenshot, $0.005. The image bytes stay in the tool result; the model only sees the metadata |
 
@@ -58,7 +58,7 @@ Tool results are JSON objects. A failed call returns `{ error: "..." }` instead 
 The model only sees `agentsearch_search({ query, max_results })`; it can never choose paid search. The mode is a developer setting: `webSearch({ mode: "paid" })` or `agentSearchTools({ mode: "paid" })`.
 
 - `free` (default): the free relay.
-- `paid`: paid search ($0.005/call). Falls back to free with a console warning if no wallet key is set.
+- `paid`: paid search ($0.003/call). Falls back to free with a console warning if no wallet key is set.
 - `auto`: paid if a wallet key is set, otherwise free.
 
 `AGENTSEARCH_MODE` (`free` / `paid` / `auto`) takes precedence over the `mode` option. A wallet key on its own never switches search to paid.
@@ -71,7 +71,7 @@ The model only sees `agentsearch_search({ query, max_results })`; it can never c
 
 ## Paid tools (x402, no account)
 
-Set `AGENTSEARCH_WALLET_PRIVATE_KEY` to the private key of a **new wallet made only for this**, funded with a little USDC on Base (e.g. $1; no ETH needed). Calls are paid per request over x402 directly to AgentSearch's own API (`https://api.agentsearchhq.com`), settled only on success: search $0.005, news $0.005, extract $0.004, render $0.005, screenshot $0.005, search-and-read $0.006 ([pricing](https://agentsearchhq.com/pricing?utm_source=agentsearchhq-ai-sdk&utm_medium=package), [x402 docs](https://agentsearchhq.com/docs/x402?utm_source=agentsearchhq-ai-sdk&utm_medium=package)). Wallet setup takes about two minutes: [guide](https://agentsearchhq.com/wallet-setup?utm_source=agentsearchhq-ai-sdk&utm_medium=package).
+Set `AGENTSEARCH_WALLET_PRIVATE_KEY` to the private key of a **new wallet made only for this**, funded with a little USDC on Base (e.g. $1; no ETH needed). Calls are paid per request over x402 directly to AgentSearch's own API (`https://api.agentsearchhq.com`), settled only on success: search $0.003, news $0.003, extract $0.002, render $0.005, screenshot $0.004, search-and-read $0.005 ([pricing](https://agentsearchhq.com/pricing?utm_source=agentsearchhq-ai-sdk&utm_medium=package), [x402 docs](https://agentsearchhq.com/docs/x402?utm_source=agentsearchhq-ai-sdk&utm_medium=package)). Wallet setup takes about two minutes: [guide](https://agentsearchhq.com/wallet-setup?utm_source=agentsearchhq-ai-sdk&utm_medium=package).
 
 | Env var | Default |
 |---|---|
