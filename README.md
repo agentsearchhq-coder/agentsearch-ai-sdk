@@ -10,8 +10,8 @@ Works with `generateText`, `streamText` and agents in AI SDK 5, 6 and 7.
 | `agentsearch_extract` | URL to clean markdown/text. **Free trial** with no wallet (5 calls/day per IP), then $0.002/call |
 | `agentsearch_render` | Headless browser for JavaScript pages. **Free trial** with no wallet (3 calls/day per IP, no screenshots), then $0.005/call |
 | `agentsearch_search_and_read` | Search plus the top pages' text in one call, $0.005 (charged only when at least one page returns text) |
-| `agentsearch_news_search` | Recent news with publish dates, $0.005 (not charged when there are no results) |
-| `agentsearch_screenshot` | PNG/JPEG page screenshot, $0.005. The image bytes stay in the tool result; the model only sees the metadata |
+| `agentsearch_news_search` | Recent news with publish dates, $0.003 (not charged when there are no results) |
+| `agentsearch_screenshot` | PNG/JPEG page screenshot, $0.004. The image bytes stay in the tool result; the model only sees the metadata |
 
 ## Install
 
