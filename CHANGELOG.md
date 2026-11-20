@@ -1,5 +1,8 @@
 # Changelog
 
+## 0.2.1 (2026-11-20)
+- Free search wording: the free relay now allows **25 free searches per IP in total** (a lifetime allowance since 2026-11-19, not per day), then pay per call via x402 on Base ($0.003 per search at https://api.agentsearchhq.com; wallet setup https://agentsearchhq.com/wallet-setup). The search tool description, the free-limit (HTTP 429) message, `searchModeLabel()` and the README no longer say "25 searches/day per IP", "resets daily" or "daily limit". The extract/render free trial is unchanged (5 extract and 3 render calls per day per IP). No behavior change.
+
 ## 0.2.0 (2026-11-19)
 - **With a wallet, search pays by default.** The search mode now defaults to `auto`: when a wallet is configured, `agentsearch_search` pays $0.003 per call over x402 to AgentSearch's own API ($0.005 with `AGENTSEARCH_PAYMENT_ROUTE=pocket`). With no wallet it uses the free relay exactly as before. `mode: "free"` or `AGENTSEARCH_MODE=free` is the opt-out. Spend caps are unchanged.
 - **Reuse an existing wallet:** `AGENTSEARCH_WALLET_FILE` (64-hex key file or JSON with `privateKey`; `agentcash` = `~/.agentcash/wallet.json`). Read only when signing; never logged.

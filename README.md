@@ -6,7 +6,7 @@ Works with `generateText`, `streamText` and agents in AI SDK 5, 6 and 7.
 
 | Tool name | Cost |
 |---|---|
-| `agentsearch_search` | **Free** with no wallet (up to 25 searches/day per IP, subject to shared daily capacity; up to 5 results; no key). With a wallet configured, $0.003/call (from 0.2.0; `mode: "free"` or `AGENTSEARCH_MODE=free` keeps it free) |
+| `agentsearch_search` | **Free** with no wallet (25 free searches per IP in total, then pay per call, subject to shared daily capacity; up to 5 results; no key). With a wallet configured, $0.003/call (from 0.2.0; `mode: "free"` or `AGENTSEARCH_MODE=free` keeps it free) |
 | `agentsearch_extract` | URL to clean markdown/text. **Free trial** with no wallet (5 calls/day per IP), then $0.002/call |
 | `agentsearch_render` | Headless browser for JavaScript pages. **Free trial** with no wallet (3 calls/day per IP, no screenshots), then $0.005/call |
 | `agentsearch_search_and_read` | Search plus the top pages' text in one call, $0.005 (charged only when at least one page returns text) |
