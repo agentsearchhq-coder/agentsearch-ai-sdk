@@ -1,6 +1,6 @@
 {
   "name": "@agentsearchhq/ai-sdk",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Vercel AI SDK tools for AgentSearch: free live web search (no key), free-trial extract and JS render, plus pay-per-call news search, screenshots and search-and-read (USDC on Base via x402, no account or API key)",
   "type": "module",
   "main": "dist/index.js",
